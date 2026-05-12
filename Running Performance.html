@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Running Performance Dashboard</title>
+    <!-- Tailwind CSS สำหรับความสวยงามและ Responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js สำหรับสร้างกราฟ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse สำหรับอ่านไฟล์ CSV อัตโนมัติ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Running Performance Dashboard</h1>
+                <p class="text-gray-500 mt-1">วิเคราะห์ข้อมูลการวิ่งเพื่อพัฒนาศักยภาพ (ข้อมูลสัปดาห์ที่ 1 พ.ค. 2026)</p>
+            </div>
+            <div class="hidden md:flex p-3 bg-blue-100 rounded-full text-blue-600">
+                <i data-lucide="activity" class="w-8 h-8"></i>
+            </div>
+        </div>
+
+        <!-- KPI Scorecards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Total Distance -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-center">
+                <div class="flex items-center justify-between">
+                    <p class="text-gray-500 text-sm font-medium">ระยะทางสะสม (กม.)</p>
+                    <i data-lucide="route" class="w-5 h-5 text-blue-500"></i>
+                </div>
+                <h2 id="kpi-distance" class="text-3xl font-bold text-gray-800 mt-2">...</h2>
+                <p class="text-xs text-green-500 mt-2 font-medium flex items-center">
+                    <i data-lucide="trending-up" class="w-3 h-3 mr-1"></i> ทำได้ดีเยี่ยม
+                </p>
+            </div>
+            
+            <!-- Average Pace -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-500 flex flex-col justify-center">
+                <div class="flex items-center justify-between">
+                    <p class="text-gray-500 text-sm font-medium">เพซเฉลี่ย (นาที/กม.)</p>
+                    <i data-lucide="timer" class="w-5 h-5 text-green-500"></i>
+                </div>
+                <h2 id="kpi-pace" class="text-3xl font-bold text-gray-800 mt-2">...</h2>
+                <p class="text-xs text-gray-400 mt-2 font-medium flex items-center">
+                    คำนวณจากวันที่วิ่งทั้งหมด
+                </p>
+            </div>
+
+            <!-- Average HR -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-red-500 flex flex-col justify-center">
+                <div class="flex items-center justify-between">
+                    <p class="text-gray-500 text-sm font-medium">อัตราการเต้นหัวใจเฉลี่ย (bpm)</p>
+                    <i data-lucide="heart-pulse" class="w-5 h-5 text-red-500"></i>
+                </div>
+                <h2 id="kpi-hr" class="text-3xl font-bold text-gray-800 mt-2">...</h2>
+                <p class="text-xs text-green-500 mt-2 font-medium flex items-center">
+                    <i data-lucide="check-circle" class="w-3 h-3 mr-1"></i> อยู่ในโซนแอโรบิกที่ดี
+                </p>
+            </div>
+
+            <!-- Compliance -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-purple-500 flex flex-col justify-center">
+                <div class="flex items-center justify-between">
+                    <p class="text-gray-500 text-sm font-medium">ทำตามแผน (Compliance)</p>
+                    <i data-lucide="target" class="w-5 h-5 text-purple-500"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-800 mt-2">85%</h2>
+                <p class="text-xs text-yellow-500 mt-2 font-medium flex items-center">
+                    <i data-lucide="alert-circle" class="w-3 h-3 mr-1"></i> Long run ขาดไปนิดหน่อย
+                </p>
+            </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Distance Bar Chart -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm lg:col-span-2">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">ระยะทางรายวัน (กม.)</h3>
+                <div class="relative h-72 w-full">
+                    <canvas id="distanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- HR Zone Pie Chart -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">สัดส่วนโซนหัวใจ (HR Zones)</h3>
+                <div class="relative h-64 w-full flex justify-center">
+                    <canvas id="zoneChart"></canvas>
+                </div>
+                <p class="text-center text-sm text-gray-500 mt-4">รักษาฐานแอโรบิกได้ดีเยี่ยม (Z1-Z2 > 80%)</p>
+            </div>
+        </div>
+
+        <!-- Charts Row 2 -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">ความสัมพันธ์ระหว่าง Pace และ Heart Rate</h3>
+            <p class="text-sm text-gray-500 mb-4">กราฟนี้ช่วยเช็คความฟิต หากเส้น Pace สีน้ำเงินวิ่งเร็วขึ้น (ลงต่ำ) แต่เส้น Heart Rate สีแดงยังคงที่ แปลว่าฟิตขึ้น!</p>
+            <div class="relative h-80 w-full">
+                <canvas id="paceHrChart"></canvas>
+            </div>
+        </div>
+
+        <!-- ✨ AI Coach Section -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl shadow-sm border border-blue-100">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-indigo-900 flex items-center">
+                        <span class="text-xl mr-2">✨</span> AI Running Coach
+                    </h3>
+                    <p class="text-sm text-indigo-700 mt-1">ให้ Gemini ช่วยวิเคราะห์ผลลัพธ์และแนะนำการซ้อมสัปดาห์ถัดไป</p>
+                </div>
+                <button id="ai-coach-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-md hover:shadow-lg flex items-center shrink-0">
+                    ✨ วิเคราะห์ผลการซ้อมสัปดาห์นี้
+                </button>
+            </div>
+            
+            <div id="ai-loading" class="hidden flex items-center justify-center py-6 text-indigo-600 text-sm font-medium">
+                <svg class="animate-spin -ml-1 mr-3 h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                โค้ช AI กำลังอ่านข้อมูลและประมวลผล...
+            </div>
+
+            <div id="ai-coach-result" class="hidden bg-white/80 backdrop-blur-sm p-5 rounded-xl shadow-inner border border-white/50 text-gray-700 text-sm leading-relaxed mt-2">
+                <!-- AI Result goes here -->
+            </div>
+        </div>
+
+        <!-- ✨ Input Data Section -->
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-blue-100">
+            <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-blue-50/50">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                        <i data-lucide="edit-3" class="w-5 h-5 mr-2 text-blue-600"></i> อัปเดตข้อมูลการวิ่ง (Update Data)
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1">*เลือกวันที่จากตารางเพื่ออัปเดตผลลัพธ์การวิ่ง (ข้อมูลชั่วคราว ไม่ได้บันทึกลง Google Sheets)</p>
+                </div>
+            </div>
+            <div class="p-6">
+                <form id="manual-input-form" class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="col-span-2 md:col-span-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">เลือกวันที่ (Date)</label>
+                        <select id="in-date" required class="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-gray-50">
+                            <option value="">-- กำลังโหลดข้อมูล... --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">ประเภท (Type)</label>
+                        <input type="text" id="in-type" placeholder="เช่น Easy, Recovery" class="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-blue-600">ระยะทาง (km) -> Distance</label>
+                        <input type="number" id="in-distance" step="0.01" min="0" placeholder="เช่น 10.5" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-blue-600">เวลา (Time) -> Time</label>
+                        <input type="text" id="in-time" placeholder="เช่น 50:00" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-blue-600">Pace (ชั่วโมง.นาที.วินาที)</label>
+                        <input type="number" id="in-pace" step="0.01" min="0" placeholder="เช่น 6.30" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-red-600">Avg HR -> AvgHR</label>
+                        <input type="number" id="in-avghr" min="0" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-red-600">Max HR -> MaxHR</label>
+                        <input type="number" id="in-maxhr" min="0" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-purple-600">Cadence -> Cadence(RPM)</label>
+                        <input type="number" id="in-cadence" min="0" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-green-600">Avg Elev -> AVG Elevation Gain</label>
+                        <input type="number" id="in-avgelev" min="0" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1 text-green-600">Max Elev -> MAX Elevation Gain</label>
+                        <input type="number" id="in-maxelev" min="0" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 border">
+                    </div>
+                    <div class="col-span-2 md:col-span-5 flex justify-end mt-2">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors flex justify-center items-center">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i> อัปเดตข้อมูลลงตาราง
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Data Table (Summary) -->
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">สรุปข้อมูลการวิ่งรายวัน</h3>
+                <span class="text-xs text-gray-500">*แสดงข้อมูลทั้งหมด 15 คอลัมน์</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-500 text-xs">
+                            <th class="p-3 font-medium">สัปดาห์ (Week)</th>
+                            <th class="p-3 font-medium">วันที่</th>
+                            <th class="p-3 font-medium">วัน</th>
+                            <th class="p-3 font-medium">ประเภท (Type)</th>
+                            <th class="p-3 font-medium text-center">เป้าหมาย</th>
+                            <th class="p-3 font-medium text-center">ระยะทาง (กม.)</th>
+                            <th class="p-3 font-medium text-center">เวลา</th>
+                            <th class="p-3 font-medium text-center">เพซ</th>
+                            <th class="p-3 font-medium text-center">Avg/Max HR</th>
+                            <th class="p-3 font-medium text-center">Cadence</th>
+                            <th class="p-3 font-medium text-center">Elevation (Avg/Max)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="text-sm text-gray-700">
+                        <!-- ข้อมูลจะถูกโหลดจาก Google Sheets อัตโนมัติ -->
+                        <tr>
+                            <td colspan="11" class="p-8 text-center text-gray-500">
+                                กำลังโหลดข้อมูลจาก Google Sheets...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // URL ของ Google Sheets ที่เผยแพร่เป็น CSV (จากที่คุณส่งมา)
+        const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTQ3nNQU4SZKWqZlwWxqLQaP8LlMrDDscnZaSHsHE8Lq6Rwm77Sz6sOuE1wQsfxWLFZ_RHwPQ7tgI8q/pub?output=csv";
+
+        // ฟังก์ชันแปลงทศนิยมเป็น Pace (เช่น 6.16 -> 6:16)
+        function formatPace(decimalPace) {
+            if (!decimalPace || isNaN(decimalPace)) return "-";
+            const mins = Math.floor(decimalPace);
+            const secs = Math.round((decimalPace - mins) * 100); 
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // ฟังก์ชันกำหนดสีของ Tag ตามประเภทการวิ่ง
+        function determineTypeColor(type) {
+            type = type ? type.toLowerCase() : '';
+            if (type.includes('easy')) return 'bg-green-100 text-green-700';
+            if (type.includes('recovery')) return 'bg-blue-100 text-blue-700';
+            if (type.includes('long')) return 'bg-purple-100 text-purple-700';
+            if (type.includes('rest') || type.includes('พัก')) return 'bg-gray-100 text-gray-700';
+            return 'bg-gray-100 text-gray-700';
+        }
+
+        // ฟังก์ชันกำหนดสีพื้นหลังของวันที่และวัน ตามรูปแบบในตาราง
+        function getDayColorClass(dayName) {
+            dayName = dayName ? dayName.toLowerCase().trim() : '';
+            if (dayName.includes('mon') || dayName.includes('จันทร์') || dayName.includes('จ')) return 'bg-yellow-200 text-yellow-800'; // สีเหลือง
+            if (dayName.includes('tue') || dayName.includes('อังคาร') || dayName.includes('อ')) return 'bg-pink-300 text-pink-900'; // สีชมพู
+            if (dayName.includes('wed') || dayName.includes('พุธ') || dayName.includes('พ')) return 'bg-green-600 text-white'; // สีเขียวเข้ม
+            if (dayName.includes('thu') || dayName.includes('พฤหัส') || dayName.includes('พฤ')) return 'bg-orange-400 text-white'; // สีส้ม
+            if (dayName.includes('fri') || dayName.includes('ศุกร์') || dayName.includes('ศ')) return 'bg-blue-500 text-white'; // สีฟ้า
+            if (dayName.includes('sat') || dayName.includes('เสาร์') || dayName.includes('ส')) return 'bg-purple-700 text-white'; // สีม่วง
+            if (dayName.includes('sun') || dayName.includes('อาทิตย์') || dayName.includes('อา')) return 'bg-red-600 text-white'; // สีแดง
+            return 'bg-gray-100 text-gray-800'; // ค่าเริ่มต้น
+        }
+
+        // ตัวแปรเก็บ Instance ของกราฟ เพื่อให้เคลียร์กราฟเก่าทิ้งได้ก่อนวาดใหม่
+        let chartInstances = {};
+
+        // เก็บข้อมูลส่วนกลาง (Global State) แบบใหม่ เก็บเป็น Array ของข้อมูลแต่ละแถว
+        let appState = {
+            allRows: []
+        };
+
+        // เก็บข้อมูลไว้ให้ AI นำไปวิเคราะห์
+        window.runningStats = {
+            totalDistance: 0, activeDays: 0, avgPace: 0, avgHR: 0, details: []
+        };
+
+        // ฟังก์ชันสร้าง HTML สำหรับแต่ละแถวของตาราง เพื่อลดความซ้ำซ้อน
+        function createRowHTML(row) {
+            const typeClass = determineTypeColor(row.typeZone);
+            const dayColorClass = getDayColorClass(row.dayVal);
+            const hrDisplay = row.avgHr ? `${row.avgHr} / ${row.maxHr || '-'}` : '-';
+            const elevDisplay = row.avgElev ? `${row.avgElev} / ${row.maxElev || '-'}` : '-';
+            const targetDisplay = row.target ? (row.target.length > 20 ? row.target.substring(0, 20) + '...' : row.target) : '-';
+
+            return `
+                <td class="p-3 text-center text-gray-500 font-medium">${row.weekVal || '-'}</td>
+                <td class="p-0"><div class="w-full h-full p-3 font-medium text-center ${dayColorClass}">${row.dateVal || '-'}</div></td>
+                <td class="p-0"><div class="w-full h-full p-3 font-bold text-center ${dayColorClass}">${row.dayVal || '-'}</div></td>
+                <td class="p-3 border-l border-gray-100">
+                    <div class="flex flex-col">
+                        <span class="px-2 py-0.5 ${typeClass} rounded text-[10px] w-fit font-medium">${row.typeZone || '-'} ${row.zone && row.zone !== '-' ? '(' + row.zone + ')' : ''}</span>
+                        <span class="text-xs text-gray-500 mt-1 truncate max-w-[120px]" title="${row.workoutDetail}">${row.workoutDetail || '-'}</span>
+                    </div>
+                </td>
+                <td class="p-3 text-center text-xs text-gray-500" title="${row.target}">${targetDisplay}</td>
+                <td class="p-3 text-center ${row.distance === 0 ? 'text-gray-400' : 'font-medium'} text-blue-600">${row.distance > 0 ? row.distance.toFixed(2) : '-'}</td>
+                <td class="p-3 text-center text-xs text-gray-500">${row.time || '-'}</td>
+                <td class="p-3 text-center ${!row.pace ? 'text-gray-400' : 'text-gray-800'} font-medium">${formatPace(row.pace)}</td>
+                <td class="p-3 text-center ${!row.avgHr ? 'text-gray-400' : ''} text-xs"><span class="text-red-500 font-medium">${row.avgHr || '-'}</span> / ${row.maxHr || '-'}</td>
+                <td class="p-3 text-center ${!row.cadence ? 'text-gray-400' : 'text-purple-600'}">${row.cadence || '-'}</td>
+                <td class="p-3 text-center ${!row.avgElev ? 'text-gray-400' : ''} text-xs">${elevDisplay}</td>
+            `;
+        }
+
+        // ฟังก์ชันวาดหน้า Dashboard ใหม่ทั้งหมด (เมื่อมีการโหลดข้อมูลหรืออัปเดต)
+        function renderDashboard() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            let totalDistance = 0, paceSum = 0, hrSum = 0, activeDaysCount = 0;
+            let days = [], distances = [], paces = [], avgHRs = [], zoneCounts = {};
+            
+            // ล้างข้อมูล AI เก่าทิ้ง
+            window.runningStats.details = [];
+
+            appState.allRows.forEach((rowData, index) => {
+                const displayDay = rowData.dayVal && rowData.dayVal.trim() !== '' ? rowData.dayVal : rowData.dateVal;
+                
+                days.push(displayDay);
+                distances.push(rowData.distance);
+                paces.push(rowData.pace);
+                avgHRs.push(rowData.avgHr);
+
+                if (rowData.distance > 0 || (rowData.workoutDetail && rowData.workoutDetail.toLowerCase().includes('rest'))) {
+                    window.runningStats.details.push(`วันที่: ${displayDay}, ประเภท: ${rowData.typeZone}, ระยะทาง: ${rowData.distance > 0 ? rowData.distance : 0}กม., เพซ: ${formatPace(rowData.pace)}, HR: ${rowData.avgHr || '-'}, รอบขา: ${rowData.cadence || '-'}, ความชัน: ${rowData.avgElev || '-'}`);
+                }
+
+                totalDistance += rowData.distance;
+                if (rowData.pace) {
+                    paceSum += rowData.pace;
+                    hrSum += rowData.avgHr || 0;
+                    activeDaysCount++;
+                }
+
+                if (rowData.zone && rowData.zone.trim() !== '' && rowData.distance > 0) {
+                    const zoneClean = rowData.zone.trim();
+                    zoneCounts[zoneClean] = (zoneCounts[zoneClean] || 0) + 1;
+                }
+
+                const tr = document.createElement('tr');
+                // กำหนด id ให้แต่ละแถว เพื่อใช้อ้างอิงตอนเลื่อนจอมาดู
+                tr.id = `row-${index}`;
+                tr.className = "border-b border-gray-50 hover:bg-gray-50 transition-colors";
+                tr.innerHTML = createRowHTML(rowData);
+                tbody.appendChild(tr);
+            });
+
+            // อัปเดตตัวเลข KPI บนหน้าจอ
+            document.getElementById('kpi-distance').innerText = totalDistance.toFixed(2);
+            document.getElementById('kpi-pace').innerText = activeDaysCount > 0 ? formatPace(paceSum / activeDaysCount) : "0:00";
+            document.getElementById('kpi-hr').innerText = activeDaysCount > 0 ? Math.round(hrSum / activeDaysCount) : "0";
+
+            // อัปเดตข้อมูลสถิติให้ AI
+            window.runningStats.totalDistance = totalDistance.toFixed(2);
+            window.runningStats.activeDays = activeDaysCount;
+            window.runningStats.avgPace = activeDaysCount > 0 ? formatPace(paceSum / activeDaysCount) : "0:00";
+            window.runningStats.avgHR = activeDaysCount > 0 ? Math.round(hrSum / activeDaysCount) : "0";
+
+            lucide.createIcons();
+            buildCharts(days, distances, paces, avgHRs, zoneCounts);
+        }
+
+        // ฟังก์ชันสร้างตัวเลือกวันที่ใน Dropdown
+        function populateDateDropdown() {
+            const select = document.getElementById('in-date');
+            select.innerHTML = '<option value="">-- เลือกวันที่ --</option>';
+            appState.allRows.forEach((row, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${row.dateVal} (${row.dayVal}) - ${row.workoutDetail}`;
+                select.appendChild(option);
+            });
+        }
+
+        // เมื่อผู้ใช้เลือกวันที่ใน Dropdown ให้ดึงข้อมูลเก่ามาแสดงในฟอร์ม
+        document.getElementById('in-date')?.addEventListener('change', function(e) {
+            const index = e.target.value;
+            if (index === "") {
+                document.getElementById('manual-input-form').reset();
+                return;
+            }
+            const row = appState.allRows[index];
+            document.getElementById('in-type').value = row.typeZone || '';
+            document.getElementById('in-distance').value = row.distance > 0 ? row.distance : '';
+            document.getElementById('in-time').value = row.time !== '-' ? row.time : '';
+            document.getElementById('in-pace').value = row.pace || '';
+            document.getElementById('in-avghr').value = row.avgHr || '';
+            document.getElementById('in-maxhr').value = row.maxHr || '';
+            document.getElementById('in-cadence').value = row.cadence || '';
+            document.getElementById('in-avgelev').value = row.avgElev || '';
+            document.getElementById('in-maxelev').value = row.maxElev || '';
+        });
+
+        // ดึงข้อมูลและสร้างกราฟ
+        Papa.parse(csvUrl, {
+            download: true,
+            header: false, // เราใช้ลำดับคอลัมน์ (Index) แทนชื่อ Header
+            skipEmptyLines: true,
+            complete: function(results) {
+                const rawData = results.data;
+                appState.allRows = [];
+
+                // ข้ามแถวที่เป็น Header (สมมติว่า Header อยู่บรรทัดที่ 1 คือ index 0)
+                for (let i = 1; i < rawData.length; i++) {
+                    const row = rawData[i];
+                    
+                    // เช็คว่าแถวนี้ว่างไหม (ดูว่าคอลัมน์ Date หรือ Day ว่างหรือเปล่า)
+                    if (!row[1] || row[1].trim() === '') continue;
+
+                    const rowData = {
+                        weekVal: row[0] || '-',
+                        dateVal: row[1],
+                        dayVal: row[2],
+                        workoutDetail: row[3],
+                        typeZone: row[4],
+                        zone: row[5],
+                        target: row[6],
+                        distance: parseFloat(row[7]) || 0,
+                        avgHr: parseFloat(row[8]) || null,
+                        maxHr: parseFloat(row[9]) || null,
+                        pace: parseFloat(row[10]) || null,
+                        time: row[11] || '-',
+                        cadence: parseFloat(row[12]) || null,
+                        avgElev: parseFloat(row[13]) || null,
+                        maxElev: parseFloat(row[14]) || null
+                    };
+                    
+                    appState.allRows.push(rowData);
+                }
+
+                renderDashboard();
+                populateDateDropdown();
+            },
+            error: function(err) {
+                console.error("Error fetching CSV:", err);
+                const tbody = document.getElementById('table-body');
+                tbody.innerHTML = `<tr><td colspan="11" class="p-4 text-center text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล: โปรดตรวจสอบลิงก์</td></tr>`;
+            }
+        });
+
+        // ==========================================
+        // ✨ ส่วนเชื่อมต่อกับ Google Apps Script API
+        // ==========================================
+        
+        // 👉 นำ URL ที่ได้จากการ Deploy Web App มาใส่ตรงนี้ 👈
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwYeuqobLIvndIdKBV-3gRDcuOoMUXz8pU35ojNzPMGkFT7Q62dL579wSP3WjEu5ae9/exec"; 
+
+        // จัดการเหตุการณ์เมื่อกดปุ่มอัปเดตข้อมูล (Manual Input)
+        document.getElementById('manual-input-form')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const indexStr = document.getElementById('in-date').value;
+            if (indexStr === "") {
+                alert("กรุณาเลือกวันที่ต้องการอัปเดตข้อมูลก่อนครับ");
+                return;
+            }
+            
+            const index = parseInt(indexStr);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.innerHTML;
+
+            // ดึงข้อมูลที่แก้จากฟอร์ม
+            const updatedData = {
+                typeZone: document.getElementById('in-type').value,
+                distance: document.getElementById('in-distance').value,
+                time: document.getElementById('in-time').value,
+                pace: document.getElementById('in-pace').value,
+                avgHr: document.getElementById('in-avghr').value,
+                maxHr: document.getElementById('in-maxhr').value,
+                cadence: document.getElementById('in-cadence').value,
+                avgElev: document.getElementById('in-avgelev').value,
+                maxElev: document.getElementById('in-maxelev').value
+            };
+
+            // แสดงสถานะกำลังบันทึก
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> กำลังบันทึกลงชีต...';
+
+            try {
+                // เช็คก่อนว่าใส่ URL หรือยัง
+                if (GOOGLE_SCRIPT_URL.includes("ใส่_URL")) {
+                    throw new Error("ยังไม่ได้ใส่ลิงก์ Google Script URL ในโค้ดครับ");
+                }
+
+                // วิธีส่งข้อมูลแบบ JSON แนบไปกับ Text เพื่อเลี่ยงปัญหา CORS
+                const payload = {
+                    rowIndex: index,
+                    typeZone: updatedData.typeZone,
+                    distance: updatedData.distance,
+                    time: updatedData.time,
+                    pace: updatedData.pace,
+                    avgHr: updatedData.avgHr,
+                    maxHr: updatedData.maxHr,
+                    cadence: updatedData.cadence,
+                    avgElev: updatedData.avgElev,
+                    maxElev: updatedData.maxElev
+                };
+
+                // ส่งข้อมูลไปบันทึก (นำ mode: 'no-cors' ออกเพื่อให้จับ Error จากฝั่ง Google ได้)
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8', 
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const responseText = await response.text();
+                console.log("Google Apps Script Response:", responseText);
+                
+                if (!response.ok || responseText.includes("Error") || responseText.includes("error")) {
+                    console.warn("แจ้งเตือนจากเซิร์ฟเวอร์:", responseText);
+                    alert("เกิดข้อผิดพลาดจาก Google Sheets: " + responseText + "\n(โปรดตรวจสอบโค้ด Apps Script หรือชื่อแท็บ)");
+                } else {
+                    console.log("ส่งคำขอไปอัปเดตสำเร็จ!");
+                }
+
+                // ดึง Object เดิมบนหน้าจอมาแก้ไขค่า เพื่อให้กราฟเปลี่ยนทันที
+                const rowData = appState.allRows[index];
+                rowData.typeZone = updatedData.typeZone;
+                rowData.distance = parseFloat(updatedData.distance) || 0;
+                rowData.time = updatedData.time || '-';
+                rowData.pace = parseFloat(updatedData.pace) || null;
+                rowData.avgHr = parseFloat(updatedData.avgHr) || null;
+                rowData.maxHr = parseFloat(updatedData.maxHr) || null;
+                rowData.cadence = parseFloat(updatedData.cadence) || null;
+                rowData.avgElev = parseFloat(updatedData.avgElev) || null;
+                rowData.maxElev = parseFloat(updatedData.maxElev) || null;
+
+                // วาดตารางและกราฟใหม่ทั้งหมดด้วยข้อมูลที่อัปเดตแล้ว
+                renderDashboard();
+                
+                // แจ้งเตือน และ ไฮไลท์แถวที่เพิ่งอัปเดตในตาราง
+                alert("ส่งคำสั่งอัปเดตข้อมูลลง Google Sheets แล้ว! (ข้อมูลบนหน้าจอเปลี่ยนแล้ว แต่อาจใช้เวลาเล็กน้อยในการซิงค์ข้อมูลจริงในชีต)");
+                
+                const tr = document.getElementById(`row-${index}`);
+                if (tr) {
+                    tr.classList.remove('hover:bg-gray-50');
+                    tr.classList.add('bg-blue-100', 'transition-colors', 'duration-500');
+                    tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    setTimeout(() => {
+                        tr.classList.remove('bg-blue-100');
+                        tr.classList.add('hover:bg-gray-50');
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error("Error:", error);
+                alert("เกิดข้อผิดพลาด: " + error.message);
+            } finally {
+                // คืนค่าปุ่ม
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            }
+        });
+
+        function buildCharts(days, distances, paces, avgHRs, zoneCounts) {
+            // ทำลายกราฟเก่าทิ้งก่อนวาดใหม่ (ป้องกันปัญหากราฟซ้อนกันเวลา Refresh)
+            ['distanceChart', 'zoneChart', 'paceHrChart'].forEach(id => {
+                if (chartInstances[id]) chartInstances[id].destroy();
+            });
+
+            // 1. Distance Bar Chart
+            const ctxDistance = document.getElementById('distanceChart').getContext('2d');
+            chartInstances['distanceChart'] = new Chart(ctxDistance, {
+                type: 'bar',
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: 'ระยะทาง (กม.)',
+                        data: distances,
+                        backgroundColor: distances.map(d => d > 12 ? 'rgba(168, 85, 247, 0.7)' : (d > 0 ? 'rgba(59, 130, 246, 0.7)' : 'rgba(209, 213, 219, 0.5)')),
+                        borderColor: distances.map(d => d > 12 ? 'rgba(168, 85, 247, 1)' : (d > 0 ? 'rgba(59, 130, 246, 1)' : 'rgba(209, 213, 219, 1)')),
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#f3f4f6' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 2. Zone Pie Chart
+            const zoneLabels = Object.keys(zoneCounts);
+            const zoneData = Object.values(zoneCounts);
+            const ctxZone = document.getElementById('zoneChart').getContext('2d');
+            chartInstances['zoneChart'] = new Chart(ctxZone, {
+                type: 'doughnut',
+                data: {
+                    labels: zoneLabels,
+                    datasets: [{
+                        data: zoneData,
+                        backgroundColor: ['#4ade80', '#3b82f6', '#facc15', '#f87171', '#9ca3af'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+
+            // 3. Pace vs HR Line Chart (Dual Axis)
+            const activeDays = [];
+            const activePaces = [];
+            const activeHRs = [];
+            
+            // กรองเอาเฉพาะวันที่วิ่ง (เอาวันพักออก กราฟเส้นจะได้เชื่อมต่อกันสวยงาม)
+            for(let i=0; i<days.length; i++) {
+                if(paces[i] !== null && avgHRs[i] !== null) {
+                    activeDays.push(days[i]);
+                    activePaces.push(paces[i]);
+                    activeHRs.push(avgHRs[i]);
+                }
+            }
+
+            const ctxPaceHr = document.getElementById('paceHrChart').getContext('2d');
+            chartInstances['paceHrChart'] = new Chart(ctxPaceHr, {
+                type: 'line',
+                data: {
+                    labels: activeDays,
+                    datasets: [
+                        {
+                            label: 'อัตราการเต้นหัวใจเฉลี่ย (bpm)',
+                            data: activeHRs,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.3,
+                            fill: true,
+                            pointBackgroundColor: '#ef4444',
+                            pointRadius: 4
+                        },
+                        {
+                            label: 'Pace',
+                            data: activePaces,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'transparent',
+                            yAxisID: 'y1',
+                            tension: 0.3,
+                            borderDash: [5, 5],
+                            pointBackgroundColor: '#3b82f6',
+                            pointStyle: 'rectRot',
+                            pointRadius: 5
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.datasetIndex === 1) {
+                                        // แปลงค่าทศนิยมกลับเป็นรูปแบบ mm:ss สำหรับแสดงใน Tooltip
+                                        let val = context.raw;
+                                        let mins = Math.floor(val);
+                                        let secs = Math.round((val - mins) * 100);
+                                        label += mins + ':' + secs.toString().padStart(2, '0');
+                                    } else {
+                                        label += context.raw;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            type: 'linear', display: true, position: 'left',
+                            title: { display: true, text: 'Heart Rate (bpm)', color: '#ef4444' },
+                            grid: { borderDash: [2, 4], color: '#f3f4f6' }
+                        },
+                        y1: {
+                            type: 'linear', display: true, position: 'right',
+                            title: { display: true, text: 'Pace', color: '#3b82f6' },
+                            reverse: true, // ทำให้เลขเพซน้อย (วิ่งเร็ว) อยู่ด้านบนของกราฟ
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // ✨ Gemini API AI Coach Integration
+        // ==========================================
+        const apiKey = ""; // API Key จะถูกเชื่อมโยงอัตโนมัติใน Environment นี้
+
+        document.getElementById('ai-coach-btn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('ai-coach-btn');
+            const resultDiv = document.getElementById('ai-coach-result');
+            const loadingDiv = document.getElementById('ai-loading');
+            
+            // เตรียมหน้าจอโหลด
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            loadingDiv.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            
+            // สร้าง Prompt เตรียมส่งให้ AI 
+            const prompt = `ในฐานะโค้ชสอนวิ่ง โปรดวิเคราะห์ข้อมูลการวิ่งสัปดาห์นี้ของฉันให้หน่อย:
+            ระยะทางรวม: ${window.runningStats.totalDistance} กม.
+            จำนวนวันที่วิ่ง: ${window.runningStats.activeDays} วัน
+            เพซเฉลี่ยรวม: ${window.runningStats.avgPace} นาที/กม.
+            HR เฉลี่ยรวม: ${window.runningStats.avgHR} bpm
+            รายละเอียดตารางแต่ละวัน:
+            ${window.runningStats.details.join('\n')}
+            `;
+
+            try {
+                const aiResponse = await fetchGeminiWithRetry(prompt);
+                // แปลง Markdown เบื้องต้นให้เป็น HTML (ตัวหนา และขึ้นบรรทัดใหม่)
+                const formattedHtml = aiResponse
+                    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-900">$1</strong>')
+                    .replace(/\n/g, '<br/>')
+                    .replace(/\* (.*?)(?=<br\/>|$)/g, '<li class="ml-4 list-disc">$1</li>'); // จัดการ list
+
+                resultDiv.innerHTML = formattedHtml;
+                resultDiv.classList.remove('hidden');
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                resultDiv.innerHTML = `<span class="text-red-500 flex items-center"><i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i> ขออภัย เกิดข้อผิดพลาดในการเชื่อมต่อกับโค้ช AI กรุณาลองใหม่อีกครั้ง</span>`;
+                lucide.createIcons();
+                resultDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                loadingDiv.classList.add('hidden');
+            }
+        });
+
+        // ฟังก์ชันเรียก Gemini API พร้อมระบบ Retry อัตโนมัติกรณีล้มเหลว
+        async function fetchGeminiWithRetry(prompt, retries = 5) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { 
+                    parts: [{ 
+                        text: "คุณคือโค้ชนักวิ่งมืออาชีพ ที่เชี่ยวชาญวิทยาศาสตร์การกีฬา หน้าที่ของคุณคือ: 1. กล่าวชมเชยพัฒนาการแบบให้กำลังใจ 2. วิเคราะห์สถิติคร่าวๆ (เช่น สัดส่วนการพัก, ความสัมพันธ์ของ Pace กับ HR หรือการสะสมไมเลจ) 3. ชี้จุดที่ควรระวังเพื่อป้องกันอาการบาดเจ็บ 4. ให้คำแนะนำสั้นๆ สำหรับการซ้อมสัปดาห์หน้า ขอให้ตอบเป็นภาษาไทยด้วยความยาวที่กระชับ อ่านง่าย เป็นมิตร (ประมาณ 3-4 ย่อหน้าสั้นๆ)" 
+                    }] 
+                }
+            };
+
+            let delay = 1000;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    return data.candidates[0].content.parts[0].text;
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
